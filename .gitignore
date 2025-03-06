@@ -4,3 +4,5 @@ naml_venv/
 naml_venv/*
 .vscode/
 .vscode/*
+.venv/
+.venv/*
