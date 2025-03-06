@@ -1,9 +1,24 @@
 """
-Movie Recommender System - Evaluation and Recommendations Script
+Movie Recommender System - Script di Valutazione e Raccomandazioni
 -------------------------------------------------------------------
-This script loads the trained VAE model, the cleaned ratings dataset, and the items file,
-and for some random users prints a table with the recommended movies (top-N) based on the predicted rating.
-The ratings are converted back to the original scale [1,5] to make the output understandable.
+Questo script carica il modello VAE addestrato, il dataset dei rating puliti e il file degli item,
+e per alcuni utenti casuali stampa una tabella con i film consigliati (top-N) in base al rating predetto.
+I rating vengono riconvertiti alla scala originale [1,5] per rendere l'output comprensibile.
+
+Struttura del progetto:
+    movie-recommendation-system/
+    ├── data/
+    │   ├── cleaned/
+    │   │   └── ratings_clean.csv     <-- Dataset pulito dei rating (non normalizzato)
+    │   └── ml-100k/
+    │       └── u.item                <-- File con le informazioni sui film
+    ├── models/
+    │   ├── __init__.py               <-- File vuoto per definire il package
+    │   └── vae_model.py              <-- Modulo con la definizione del modello VAE (incluso beta se necessario)
+    ├── evaluate/
+    │   └── recommendations.py       <-- Questo file: script per generare le raccomandazioni
+    └── train/
+        └── vae_train.py             <-- Script di training (già esistente)
 """
 
 import os
@@ -14,107 +29,108 @@ import random
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 
-# Import the function to create the VAE model from the models module
+# Importa la funzione per creare il modello VAE dal modulo models
 from model.vae_model import create_vae_architecture
 
 # ------------------------------
-# Data Loading
+# Caricamento dei Dati
 # ------------------------------
 
-# Path to the cleaned ratings file
+# Percorso del file dei rating puliti
 cleaned_ratings_path = os.path.join("data", "cleaned", "ratings_clean.csv")
 
-# Load the cleaned ratings (assuming the file contains the columns: user_id, item_id, rating, ...)
+# Carica i rating puliti (supponiamo che il file contenga le colonne: user_id, item_id, rating, ...)
 ratings_df = pd.read_csv(cleaned_ratings_path)
-print("Ratings data loaded. Shape:", ratings_df.shape)
+print("Dati dei rating caricati. Shape:", ratings_df.shape)
 
-# Create the user-item matrix:
-# - Pivot: rows = user_id, columns = item_id, values = rating
-# - Missing values are filled with 0.
+# Creazione della matrice utente-item:
+# - Pivot: righe = user_id, colonne = item_id, valori = rating
+# - I valori mancanti vengono riempiti con 0.
 user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
-print("User-item matrix created. Shape:", user_item_matrix.shape)
+print("Matrice utente-item creata. Shape:", user_item_matrix.shape)
 
-# Normalize the ratings from [1,5] to [0,1] to be compatible with the model (sigmoid output)
+# Normalizza i rating da [1,5] a [0,1] per essere compatibili con il modello (sigmoid in output)
 user_item_matrix_normalized = (user_item_matrix - 1) / 4
 
-# Convert the normalized matrix to a NumPy array
+# Converti la matrice normalizzata in un array NumPy
 data = user_item_matrix_normalized.values.astype('float32')
 
-# Number of movies (items)
+# Numero di film (item)
 n_items = data.shape[1]
-print("Number of movies (items):", n_items)
+print("Numero di film (item):", n_items)
 
 # ------------------------------
-# Loading Movie Information
+# Caricamento delle Informazioni sui Film
 # ------------------------------
 
-# Path to the items file (MovieLens u.item)
+# Percorso del file degli item (MovieLens u.item)
 items_file = os.path.join("data", "ml-100k", "u.item")
 
-# Define the column names as specified (we take at least 'item_id' and 'movie_title')
+# Definisci i nomi delle colonne come specificato (prendiamo almeno 'item_id' e 'movie_title')
 items_cols = ['item_id', 'movie_title', 'release_date', 'video_release_date', 'IMDb_URL',
               'unknown', 'Action', 'Adventure', 'Animation', 'Childrens', 'Comedy', 'Crime', 
               'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 'Musical', 'Mystery', 
               'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western']
 
-# Load the items file
+# Carica il file degli item
 items_df = pd.read_csv(items_file, sep='|', names=items_cols, encoding='latin-1')
-print("Movie information loaded. Shape:", items_df.shape)
+print("Informazioni sui film caricate. Shape:", items_df.shape)
 
-# Create a dictionary to map item_id to movie_title
+# Crea un dizionario per mappare l'item_id al movie_title
 movie_dict = pd.Series(items_df.movie_title.values, index=items_df.item_id).to_dict()
 
 # ------------------------------
-# Loading the VAE Model
+# Caricamento del Modello VAE
 # ------------------------------
 
-latent_dim = 50   # Latent space dimension (same value used in training)
+latent_dim = 50   # Dimensione dello spazio latente (stesso valore usato nel training)
+beta = 1.0        # Puoi variare beta se necessario
 
-# Recreate the VAE model (the same defined in models/vae_model.py)
-vae, encoder, decoder = create_vae_architecture(n_items, latent_dim)
+# Ricrea il modello VAE (lo stesso definito in models/vae_model.py)
+vae, encoder, decoder = create_vae_architecture(n_items, latent_dim, beta)
 
-# If you have saved the model weights, load them (you must have saved them previously during training)
-# Example:
+# Se hai salvato i pesi del modello, caricali (devi averli salvati in precedenza durante il training)
+# Esempio:
 # weights_path = os.path.join("models", "vae_weights.h5")
 # vae.load_weights(weights_path)
-# In this example, we assume the model is already trained in the current session.
+# In questo esempio assumiamo che il modello sia già addestrato nella sessione corrente.
 
 # ------------------------------
-# Prediction and Recommendations
+# Predizione e Raccomandazioni
 # ------------------------------
 
-# Select some random users (e.g., 5)
-num_users = 5
-user_ids = user_item_matrix.index.tolist()  # List of user_ids
-selected_users = random.sample(user_ids, num_users)
+# Seleziona alcuni utenti casuali (ad esempio 5)
+num_utenti = 5
+user_ids = user_item_matrix.index.tolist()  # Lista degli user_id
+utenti_selezionati = random.sample(user_ids, num_utenti)
 
-print("\nRecommendations for random users:")
+print("\nRaccomandazioni per utenti casuali:")
 
-# For each selected user:
-for uid in selected_users:
-    # Extract the normalized rating vector for the user (convert to 2D array for the model)
+# Per ogni utente selezionato:
+for uid in utenti_selezionati:
+    # Estrai il vettore dei rating normalizzati per l'utente (converti in array 2D per il modello)
     user_vector = user_item_matrix_normalized.loc[uid].values.reshape(1, -1)
     
-    # Use the VAE model to predict the rating (output will also be normalized in [0,1])
+    # Usa il modello VAE per predire il rating (output sarà anch'esso normalizzato in [0,1])
     pred_vector = vae.predict(user_vector)
     
-    # Convert the predicted ratings back to the original scale [1,5]
+    # Riconverti i rating predetti alla scala originale [1,5]
     pred_ratings = pred_vector[0] * 4 + 1
     
-    # Create a DataFrame to sort and display the results
+    # Crea un DataFrame per ordinare e visualizzare i risultati
     rec_df = pd.DataFrame({
         'Item_ID': np.arange(1, n_items+1),
         'Predicted_Rating': pred_ratings
     })
     
-    # Add the movie title using the movie_dict (if the item_id is present)
+    # Aggiungi il titolo del film usando il dizionario movie_dict (se l'item_id è presente)
     rec_df['Movie_Title'] = rec_df['Item_ID'].apply(lambda x: movie_dict.get(x, "N/A"))
     
-    # Sort by descending rating
+    # Ordina per rating decrescente
     rec_df = rec_df.sort_values(by='Predicted_Rating', ascending=False)
     
-    # Take the top 10 movies with the highest rating
+    # Prendi i top 10 film con rating più alto
     top_rec = rec_df.head(10)
     
-    print(f"\nUser ID: {uid}")
+    print(f"\nUtente ID: {uid}")
     print(top_rec[['Item_ID', 'Movie_Title', 'Predicted_Rating']].to_markdown(index=False))

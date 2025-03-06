@@ -1,15 +1,17 @@
 """
-Movie Recommender System - VAE Training Script
-----------------------------------------------
-This script trains the VAE model using the cleaned ratings dataset.
-Operations performed:
-  1. Data loading and preparation:
-     - Creation of the user-item matrix from the CSV file (data/cleaned/ratings_clean.csv)
-     - Normalization of ratings from [1,5] to [0,1]
-  2. Splitting the data into training and validation (80/20)
-  3. Creation of the VAE model using the create_vae_architecture function defined in models/vae_model.py
-  4. Training the model with EarlyStopping to avoid overfitting
-  5. Saving the model weights and training history
+Movie Recommender System - VAE Model Training Script
+------------------------------------------------------
+This script trains the Variational Autoencoder (VAE) model on the MovieLens 100K dataset (cleaned version).
+
+Overall Process:
+  1. Load the cleaned ratings dataset from 'data/cleaned/ratings_clean.csv'.
+  2. Convert the long-format ratings data into a user-item matrix where each row represents a user and 
+     each column represents a movie. Missing ratings are filled with zeros.
+  3. Split the user-item matrix into training and validation sets (80/20 split).
+  4. Create the VAE model using the number of items (movies) and a specified latent dimension.
+  5. Train the model using the training data and validate on the validation set. EarlyStopping is applied
+     to monitor the validation loss and prevent overfitting.
+  6. Optionally, save the training history for further analysis.
 """
 
 import os
@@ -19,79 +21,86 @@ from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
 
-# Import the function to create the VAE model from the models module
+# Import the VAE model creation function from our models module
 from model.vae_model import create_vae_architecture
 
 # ------------------------------
-# 1. Data Loading and Preparation
+# Load and Prepare the Data
 # ------------------------------
 
-data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
-ratings_df = pd.read_csv(data_path)
-print("Ratings dataset loaded. Shape:", ratings_df.shape)
+# Define the path to the cleaned ratings CSV file
+cleaned_ratings_path = os.path.join("data", "cleaned", "ratings_clean.csv")
 
-# Create the user-item matrix: rows = user_id, columns = item_id, values = rating
+# Load the cleaned ratings dataset using pandas
+ratings_df = pd.read_csv(cleaned_ratings_path)
+print("Cleaned ratings data loaded. Shape:", ratings_df.shape)
+
+# Convert the ratings DataFrame into a user-item matrix:
+# Rows represent users, columns represent items (movies), and values are the ratings.
+# Missing ratings are filled with zeros.
 user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
 print("User-item matrix created. Shape:", user_item_matrix.shape)
+user_item_matrix = (user_item_matrix - 1) / 4
+print("_______________________-")
+print(user_item_matrix.head())
+print("_______________________-")
+# Convert the DataFrame to a NumPy array for training.
+data = user_item_matrix.values.astype('float32')
 
-# Normalize the ratings from [1,5] to [0,1]
-user_item_matrix_normalized = (user_item_matrix - 1) / 4
-
-# Convert the matrix to a NumPy array
-data = user_item_matrix_normalized.values.astype('float32')
+# Number of items (movies) is the number of columns in the user-item matrix
 n_items = data.shape[1]
-print("Number of movies (items):", n_items)
+print("Number of items (movies):", n_items)
 
 # ------------------------------
-# 2. Splitting the Data into Training and Validation
+# Split the Data into Training and Validation Sets
 # ------------------------------
-
+# We split on the user dimension; each row is a complete rating vector for one user.
 train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
 print("Training data shape:", train_data.shape)
 print("Validation data shape:", val_data.shape)
 
-# Since the model uses a custom train_step, we pass the same input as the target.
-train_targets = train_data.copy()
-val_targets = val_data.copy()
-
 # ------------------------------
-# 3. Creation of the VAE Model
+# Create the VAE Model
 # ------------------------------
+latent_dim = 50  # Set the latent space dimension (can be tuned as needed)
 
-latent_dim = 50
+# Create the VAE model using the previously defined function in models/vae_model.py
 vae, encoder, decoder = create_vae_architecture(n_items, latent_dim)
-print("VAE model created successfully.")
+print("VAE model created.")
 
 # ------------------------------
-# 4. Training the VAE Model
+# Train the VAE Model
 # ------------------------------
+# Define training hyperparameters
+epochs = 50       # Number of epochs to train
+batch_size = 64   # Batch size for training
 
-epochs = 50
-batch_size = 64
+# Create an EarlyStopping callback to prevent overfitting
 early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
 
+# Train the VAE model using the training data and validate on the validation data.
+# Note: The VAE model computes its own loss internally, so we do not need to provide labels.
 history = vae.fit(
-    train_data,           # Input
-    train_targets,        # Target (dummy, same as input)
+    train_data,
     epochs=epochs,
     batch_size=batch_size,
-    validation_data=(val_data, val_targets),
+    validation_data=(val_data, None),  # 'None' because the model calculates loss from inputs and reconstruction
     callbacks=[early_stopping]
 )
 
 # ------------------------------
-# 5. Saving the Model Weights and Training History
+# Save the Training History (Optional)
 # ------------------------------
-
-# Build the model by calling it on some data
-vae.build(input_shape=(None, n_items))
-
-# Modify the filename to end with ".weights.h5"
-weights_path = os.path.join("model", "vae_weights.weights.h5")
-vae.save_weights(weights_path)
-print("Model weights saved at:", weights_path)
-
+# Save the training history to a CSV file for further analysis if desired.
 history_df = pd.DataFrame(history.history)
-history_path = os.path.join("data", "cleaned", "vae_training_history.csv")
-history_df.to_csv(history_path, index=False)
-print("Training history saved at:", history_path)
+history_csv_path = os.path.join("data", "cleaned", "vae_training_history.csv")
+history_df.to_csv(history_csv_path, index=False)
+print("Training history saved to:", history_csv_path)
+
+# ------------------------------
+# Overall Explanation:
+# ------------------------------
+# This script loads the preprocessed and cleaned ratings data, converts it into a user-item matrix,
+# and splits it into training and validation sets. The VAE model is built using the number of items and a specified
+# latent dimension. The model is trained end-to-end using the training data with an EarlyStopping callback to monitor
+# validation loss and prevent overfitting. Finally, the training history is saved for later review.
