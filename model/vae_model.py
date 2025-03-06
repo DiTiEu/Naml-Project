@@ -13,7 +13,7 @@ Structure:
    - Applies the reparameterization trick to sample z
 2. Decoder:
    - Input of size (latent_dim,)
-   - Dense layers: 256, 512, 1024 units, ReLU activation
+   - Dense layers: 256, 512, 1024 units, ReLU activatio
    - Output layer: n_items units with sigmoid activation
 3. VAE Model:
    - Subclass of tf.keras.Model that integrates encoder and decoder.
