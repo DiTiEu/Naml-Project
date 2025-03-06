@@ -1,97 +1,97 @@
-"""
-Movie Recommender System - VAE Training Script
-----------------------------------------------
-This script trains the VAE model using the cleaned ratings dataset.
-Operations performed:
-  1. Data loading and preparation:
-     - Creation of the user-item matrix from the CSV file (data/cleaned/ratings_clean.csv)
-     - Normalization of ratings from [1,5] to [0,1]
-  2. Splitting the data into training and validation (80/20)
-  3. Creation of the VAE model using the create_vae_architecture function defined in models/vae_model.py
-  4. Training the model with EarlyStopping to avoid overfitting
-  5. Saving the model weights and training history
-"""
-
 import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
+from sklearn.model_selection import train_test_split
+from vae_model import create_vae_architecture  # Assicurati che il file si chiami "vae_model.py"
 
-# Import the function to create the VAE model from the models module
-from model.vae_model import create_vae_architecture
+def train_vae(vae, train_data, test_data, epochs, batch_size):
+    """
+    15 Function train_vae(vae, train_data, test_data, epochs, batch_size)
+    16 Initialize EarlyStopping callback with 'val_loss' monitoring and a patience of 8
+    17 Fit the VAE model on the train_data with validation on test_data
+    18 Apply EarlyStopping callback during training
+    19 Return the training history
+    20 End Function
+    """
+    early_stop = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
+    
+    history = vae.fit(
+        train_data,
+        epochs=epochs,
+        batch_size=batch_size,
+        validation_data=test_data,
+        callbacks=[early_stop]
+    )
+    
+    return history
 
-# ------------------------------
-# 1. Data Loading and Preparation
-# ------------------------------
+def predict_ratings(vae, test_data):
+    """
+    21 Function predict_ratings(vae, test_data)
+    22 Use the VAE model to predict ratings on the test_data
+    23 Return the predicted ratings
+    24 End Function
+    """
+    predictions = vae.predict(test_data)
+    return predictions
 
-data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
-ratings_df = pd.read_csv(data_path)
-print("Ratings dataset loaded. Shape:", ratings_df.shape)
+if __name__ == '__main__':
+    # ------------------------------
+    # Caricamento dei dati reali puliti
+    # ------------------------------
+    cleaned_data_path = os.path.join("data", "cleaned")
+    ratings_file = os.path.join(cleaned_data_path, "ratings_clean.csv")
+    items_file = os.path.join(cleaned_data_path, "items_clean.csv")
+    
+    # Carica i dati dei rating
+    ratings_df = pd.read_csv(ratings_file, encoding='latin-1')
+    
+    # Poiché i rating in MovieLens sono tipicamente da 1 a 5, li scalare in [0,1]
+    # Inoltre, per costruire la matrice utente-item, si assume che gli item_id siano numerici
+    # Spostiamo gli item_id in modo che siano 0-indexed
+    ratings_df['item_id'] = ratings_df['item_id'].astype(int) - 1
 
-# Create the user-item matrix: rows = user_id, columns = item_id, values = rating
-user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
-print("User-item matrix created. Shape:", user_item_matrix.shape)
+    # Costruisci la matrice utente-item: righe = user_id, colonne = item_id, valori = rating
+    user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating')
+    user_item_matrix = user_item_matrix.fillna(0)
+    
+    # Scala i rating (da 1-5 a 0-1)
+    user_item_matrix = user_item_matrix / 5.0
 
-# Normalize the ratings from [1,5] to [0,1]
-user_item_matrix_normalized = (user_item_matrix - 1) / 4
+    # Converti in array numpy
+    data_matrix = user_item_matrix.values
+    print("Forma della matrice utente-item:", data_matrix.shape)
 
-# Convert the matrix to a NumPy array
-data = user_item_matrix_normalized.values.astype('float32')
-n_items = data.shape[1]
-print("Number of movies (items):", n_items)
+    # ------------------------------
+    # Split dei dati in training e test (80/20)
+    # ------------------------------
+    train_data, test_data = train_test_split(data_matrix, test_size=0.2, random_state=42)
+    print("Training data shape:", train_data.shape)
+    print("Test data shape:", test_data.shape)
 
-# ------------------------------
-# 2. Splitting the Data into Training and Validation
-# ------------------------------
+    # ------------------------------
+    # Creazione del modello VAE con i veri dati
+    # ------------------------------
+    # Il numero di item è dato dal numero di colonne della matrice utente-item
+    n_items = data_matrix.shape[1]
+    latent_dim = 32  # Puoi modificare questo parametro se lo desideri
 
-train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
-print("Training data shape:", train_data.shape)
-print("Validation data shape:", val_data.shape)
+    vae_model, encoder_model, decoder_model = create_vae_architecture(n_items, latent_dim)
+    
+    # Stampa della struttura del modello
+    vae_model.summary()
 
-# Since the model uses a custom train_step, we pass the same input as the target.
-train_targets = train_data.copy()
-val_targets = val_data.copy()
+    # ------------------------------
+    # Training del modello VAE
+    # ------------------------------
+    epochs = 50
+    batch_size = 32
+    history = train_vae(vae_model, train_data, test_data, epochs, batch_size)
 
-# ------------------------------
-# 3. Creation of the VAE Model
-# ------------------------------
-
-latent_dim = 50
-vae, encoder, decoder = create_vae_architecture(n_items, latent_dim)
-print("VAE model created successfully.")
-
-# ------------------------------
-# 4. Training the VAE Model
-# ------------------------------
-
-epochs = 50
-batch_size = 64
-early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
-
-history = vae.fit(
-    train_data,           # Input
-    train_targets,        # Target (dummy, same as input)
-    epochs=epochs,
-    batch_size=batch_size,
-    validation_data=(val_data, val_targets),
-    callbacks=[early_stopping]
-)
-
-# ------------------------------
-# 5. Saving the Model Weights and Training History
-# ------------------------------
-
-# Build the model by calling it on some data
-vae.build(input_shape=(None, n_items))
-
-# Modify the filename to end with ".weights.h5"
-weights_path = os.path.join("model", "vae_weights.weights.h5")
-vae.save_weights(weights_path)
-print("Model weights saved at:", weights_path)
-
-history_df = pd.DataFrame(history.history)
-history_path = os.path.join("data", "cleaned", "vae_training_history.csv")
-history_df.to_csv(history_path, index=False)
-print("Training history saved at:", history_path)
+    # ------------------------------
+    # Predizione dei rating sui dati di test
+    # ------------------------------
+    predicted_ratings = predict_ratings(vae_model, test_data)
+    print("Forma dei rating predetti:", predicted_ratings.shape)
