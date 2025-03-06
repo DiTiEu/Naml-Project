@@ -165,7 +165,7 @@ def create_vae_architecture(n_items, latent_dim=50):
     vae.compile(optimizer=optimizers.Adam(), loss=lambda y_true, y_pred: 0)
     return vae, encoder, decoder
 
-# For testing: if executed directly, builds and prints the summaries of the models.
+# For testing: if executed directly, builds and prints the summaries of the models
 if __name__ == "__main__":
     n_items = 1682    # Example: number of movies
     latent_dim = 50   # Latent space size
