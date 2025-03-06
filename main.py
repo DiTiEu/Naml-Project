@@ -5,8 +5,8 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
 # Importa le funzioni dai moduli già creati
-from vae_model import create_vae_architecture
-from vae_train import train_vae, predict_ratings
+from model.vae_model import create_vae_architecture
+from train.vae_train import train_vae, predict_ratings
 
 ##########################################
 # Funzione: compute_precision_recall_f1

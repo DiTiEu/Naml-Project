@@ -70,7 +70,7 @@ def create_vae_architecture(n_items, latent_dim):
     
     # 11. Definire la funzione di perdita come combinazione di MSE e KL divergence
     # Loss di ricostruzione (MSE)
-    reconstruction_loss = tf.keras.losses.mse(encoder_input, vae_output)
+    reconstruction_loss = tf.reduce_mean(tf.square(encoder_input - vae_output), axis=-1)
     reconstruction_loss *= n_items  # Scala la loss in base al numero di unità in input
     
     # Calcolo della KL Divergence Loss

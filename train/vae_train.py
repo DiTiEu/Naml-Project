@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
-from vae_model import create_vae_architecture  # Assicurati che il file si chiami "vae_model.py"
+from model.vae_model import create_vae_architecture  # Assicurati che il file si chiami "vae_model.py"
 
 def train_vae(vae, train_data, test_data, epochs, batch_size):
     """
