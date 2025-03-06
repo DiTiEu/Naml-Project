@@ -1,51 +1,41 @@
 """
 Movie Recommender System - VAE Model Architecture Module (Traditional Implementation)
 ----------------------------------------------------------------------------------------
-Questo modulo implementa il Variational Autoencoder (VAE) in modo tradizionale, 
-calcolando la loss (reconstruction loss + KL divergence) nel metodo train_step e test_step 
-della sottoclasse del modello. Questo approccio rispetta lo pseudocodice del paper.
+This module implements the Variational Autoencoder (VAE) in a traditional way,
+calculating the loss (reconstruction loss + KL divergence) in the train_step and test_step
+methods of the model subclass. This approach follows the pseudocode of the paper.
 
-Struttura:
+Structure:
 1. Encoder:
-   - Input di dimensione (n_items,)
-   - Dense layers: 1024, 512, 256 unità, attivazione ReLU
-   - Genera z_mean e z_log_var (con dimensione latent_dim)
-   - Applica il reparameterization trick per campionare z
+   - Input of size (n_items,)
+   - Dense layers: 1024, 512, 256 units, ReLU activation
+   - Generates z_mean and z_log_var (with latent_dim size)
+   - Applies the reparameterization trick to sample z
 2. Decoder:
-   - Input di dimensione (latent_dim,)
-   - Dense layers: 256, 512, 1024 unità, attivazione ReLU
-   - Output layer: n_items unità con attivazione sigmoid
+   - Input of size (latent_dim,)
+   - Dense layers: 256, 512, 1024 units, ReLU activation
+   - Output layer: n_items units with sigmoid activation
 3. VAE Model:
-   - Sottoclasse di tf.keras.Model che integra encoder e decoder.
-   - Il metodo call() restituisce la ricostruzione.
-   - I metodi train_step() e test_step() calcolano la reconstruction loss (MSE) e la KL divergence,
-     ne sommano i valori e aggiornano il modello.
-   
-Project Folder Structure:
-    movie-recommendation-system/
-    ├── models/
-    │   └── vae_model.py      <-- Questo file: definizione del modello VAE
-    ├── notebooks/
-    │   └── 02_vae_training.ipynb
-    ├── data/
-    ├── data_cleaning/
-    └── README.md
+   - Subclass of tf.keras.Model that integrates encoder and decoder.
+   - The call() method returns the reconstruction.
+   - The train_step() and test_step() methods calculate the reconstruction loss (MSE) and KL divergence,
+     sum their values, and update the model.
 """
 
 import tensorflow as tf
 from tensorflow.keras import layers, models, optimizers
 
-# Funzione per il reparameterization trick
+# Function for the reparameterization trick
 def sampling(args):
     """
-    Applica il reparameterization trick.
+    Applies the reparameterization trick.
     
     Parameters:
-      args (tuple): contiene (z_mean, z_log_var)
+      args (tuple): contains (z_mean, z_log_var)
     
     Returns:
-      z (tensor): campione dallo spazio latente, calcolato come:
-                  z_mean + exp(0.5 * z_log_var) * epsilon, con epsilon ~ N(0,1)
+      z (tensor): sample from the latent space, calculated as:
+                  z_mean + exp(0.5 * z_log_var) * epsilon, with epsilon ~ N(0,1)
     """
     z_mean, z_log_var = args
     batch = tf.shape(z_mean)[0]
@@ -53,17 +43,17 @@ def sampling(args):
     epsilon = tf.random.normal(shape=(batch, dim))
     return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-# Funzione per costruire l'encoder
+# Function to build the encoder
 def build_encoder(n_items, latent_dim):
     """
-    Costruisce l'encoder del VAE.
+    Builds the VAE encoder.
     
     Parameters:
-      - n_items (int): dimensione dell'input (numero di film)
-      - latent_dim (int): dimensione dello spazio latente
+      - n_items (int): input size (number of movies)
+      - latent_dim (int): latent space size
     
     Returns:
-      - encoder: modello Keras che mappa l'input al vettore latente e ai suoi parametri
+      - encoder: Keras model that maps the input to the latent vector and its parameters
     """
     encoder_inputs = layers.Input(shape=(n_items,), name="encoder_input")
     x = layers.Dense(1024, activation='relu', name="encoder_dense_1")(encoder_inputs)
@@ -78,17 +68,17 @@ def build_encoder(n_items, latent_dim):
     encoder = models.Model(encoder_inputs, [z_mean, z_log_var, z], name="encoder")
     return encoder
 
-# Funzione per costruire il decoder
+# Function to build the decoder
 def build_decoder(n_items, latent_dim):
     """
-    Costruisce il decoder del VAE.
+    Builds the VAE decoder.
     
     Parameters:
-      - n_items (int): dimensione dell'output (numero di film)
-      - latent_dim (int): dimensione dello spazio latente
+      - n_items (int): output size (number of movies)
+      - latent_dim (int): latent space size
     
     Returns:
-      - decoder: modello Keras che mappa lo spazio latente alla ricostruzione dell'input
+      - decoder: Keras model that maps the latent space to the input reconstruction
     """
     decoder_inputs = layers.Input(shape=(latent_dim,), name="decoder_input")
     x = layers.Dense(256, activation='relu', name="decoder_dense_1")(decoder_inputs)
@@ -99,11 +89,11 @@ def build_decoder(n_items, latent_dim):
     decoder = models.Model(decoder_inputs, decoder_outputs, name="decoder")
     return decoder
 
-# Definizione del modello VAE come sottoclasse di tf.keras.Model
+# Definition of the VAE model as a subclass of tf.keras.Model
 class VAE(tf.keras.Model):
     def __init__(self, encoder, decoder, **kwargs):
         """
-        Inizializza il modello VAE con l'encoder e il decoder.
+        Initializes the VAE model with the encoder and decoder.
         """
         super(VAE, self).__init__(**kwargs)
         self.encoder = encoder
@@ -111,7 +101,7 @@ class VAE(tf.keras.Model):
 
     def call(self, inputs):
         """
-        Esegue il forward pass del modello.
+        Executes the forward pass of the model.
         """
         z_mean, z_log_var, z = self.encoder(inputs)
         reconstruction = self.decoder(z)
@@ -119,11 +109,11 @@ class VAE(tf.keras.Model):
 
     def train_step(self, data):
         """
-        Definisce il training step personalizzato.
-        Calcola:
+        Defines the custom training step.
+        Calculates:
           - reconstruction loss (MSE)
           - KL divergence loss
-        e aggiorna i pesi.
+        and updates the weights.
         """
         if isinstance(data, tuple):
             data = data[0]
@@ -139,8 +129,8 @@ class VAE(tf.keras.Model):
 
     def test_step(self, data):
         """
-        Definisce il test/validation step.
-        Calcola le stesse loss del training senza aggiornare i pesi.
+        Defines the test/validation step.
+        Calculates the same losses as training without updating the weights.
         """
         if isinstance(data, tuple):
             data = data[0]
@@ -153,21 +143,21 @@ class VAE(tf.keras.Model):
 
 def create_vae_architecture(n_items, latent_dim=50):
     """
-    Crea l'architettura del VAE.
+    Creates the VAE architecture.
     
     Steps:
-      1. Costruisce l'encoder con input (n_items,) e dense layers (1024, 512, 256) con attivazione ReLU,
-         generando z_mean e z_log_var e campionando z tramite il reparameterization trick.
-      2. Costruisce il decoder con input (latent_dim,) e dense layers (256, 512, 1024) con attivazione ReLU,
-         generando un output con n_items unità e attivazione sigmoid.
-      3. Crea il modello VAE unendo encoder e decoder.
-      4. Compila il modello con l'ottimizzatore Adam e una loss dummy (lambda y_true, y_pred: 0), 
-         poiché la loss viene calcolata nel train_step/test_step.
+      1. Builds the encoder with input (n_items,) and dense layers (1024, 512, 256) with ReLU activation,
+         generating z_mean and z_log_var and sampling z via the reparameterization trick.
+      2. Builds the decoder with input (latent_dim,) and dense layers (256, 512, 1024) with ReLU activation,
+         generating an output with n_items units and sigmoid activation.
+      3. Creates the VAE model by combining encoder and decoder.
+      4. Compiles the model with the Adam optimizer and a dummy loss (lambda y_true, y_pred: 0),
+         since the loss is calculated in the train_step/test_step.
     
     Returns:
-      - vae: il modello VAE compilato
-      - encoder: il modello encoder
-      - decoder: il modello decoder
+      - vae: the compiled VAE model
+      - encoder: the encoder model
+      - decoder: the decoder model
     """
     encoder = build_encoder(n_items, latent_dim)
     decoder = build_decoder(n_items, latent_dim)
@@ -175,12 +165,12 @@ def create_vae_architecture(n_items, latent_dim=50):
     vae.compile(optimizer=optimizers.Adam(), loss=lambda y_true, y_pred: 0)
     return vae, encoder, decoder
 
-# Per testing: se eseguito direttamente, costruisce e stampa i sommari dei modelli.
+# For testing: if executed directly, builds and prints the summaries of the models.
 if __name__ == "__main__":
-    n_items = 1682    # Esempio: numero di film
-    latent_dim = 50   # Dimensione dello spazio latente
+    n_items = 1682    # Example: number of movies
+    latent_dim = 50   # Latent space size
     vae_model, encoder_model, decoder_model = create_vae_architecture(n_items, latent_dim)
-    print("Modello VAE, encoder e decoder creati correttamente.")
+    print("VAE model, encoder, and decoder created successfully.")
     encoder_model.summary()
     decoder_model.summary()
     vae_model.summary()
