@@ -1,84 +1,3 @@
-# import os
-# import pandas as pd
-# import numpy as np
-# from sklearn.model_selection import train_test_split
-# import tensorflow as tf
-# from tensorflow.keras.callbacks import EarlyStopping
-
-# from model.vae_model import create_vae_architecture
-
-# # --- Evaluation Utilities ---
-# def predict_ratings(vae_model, data):
-#     return vae_model(data).numpy()
-
-# def compute_precision_recall_f1(true_data, predicted_ratings, k=5):
-#     precisions, recalls, f1s = [], [], []
-#     for true_row, pred_row in zip(true_data, predicted_ratings):
-#         top_k_pred = np.argsort(pred_row)[::-1][:k]
-#         top_k_true = np.argsort(true_row)[::-1][:k]
-#         true_set = set(top_k_true)
-#         pred_set = set(top_k_pred)
-
-#         intersection = len(true_set & pred_set)
-#         precision = intersection / k
-#         recall = intersection / len(true_set) if len(true_set) > 0 else 0
-#         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-
-#         precisions.append(precision)
-#         recalls.append(recall)
-#         f1s.append(f1)
-
-#     return np.mean(precisions), np.mean(recalls), np.mean(f1s)
-
-# def evaluate_model(true_data, predicted_ratings):
-#     mse = np.mean((true_data - predicted_ratings) ** 2)
-#     mae = np.mean(np.abs(true_data - predicted_ratings))
-#     rmse = np.sqrt(mse)
-#     print(f"Evaluation Metrics:\n  RMSE: {rmse:.4f}\n  MAE: {mae:.4f}")
-
-# # --- Main ---
-# if __name__ == "__main__":
-#     # Step 1: Load and preprocess data
-#     data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
-#     ratings_df = pd.read_csv(data_path)
-#     user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
-#     user_item_matrix_normalized = (user_item_matrix - 1) / 4
-#     data = user_item_matrix_normalized.values.astype('float32')
-#     n_users, n_items = data.shape
-
-#     # Step 2: Split the data
-#     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
-
-#     # Step 3: Create VAE architecture
-#     latent_dim = 50
-#     vae, encoder, decoder = create_vae_architecture(n_items, latent_dim=latent_dim)
-
-#     # Step 4: Train the model
-#     epochs = 10
-#     batch_size = 64
-#     early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
-
-#     vae.fit(
-#         train_data, train_data,
-#         validation_data=(test_data, test_data),
-#         epochs=epochs,
-#         batch_size=batch_size,
-#         callbacks=[early_stopping],
-#     )
-
-#     # Step 5: Predict and evaluate
-#     predicted_ratings = predict_ratings(vae, test_data)
-#     precision, recall, f1 = compute_precision_recall_f1(test_data, predicted_ratings, k=5)
-
-#     print(f"\nPrecision@5: {precision:.4f}\nRecall@5: {recall:.4f}\nF1-score@5: {f1:.4f}")
-#     evaluate_model(test_data, predicted_ratings)
-
-#     # Step 6: Save model
-#     os.makedirs("model", exist_ok=True)
-#     vae.save_weights(os.path.join("model", "vae_weights.weights.h5"))
-
-# main.py
-
 import os
 import pandas as pd
 import numpy as np
@@ -87,7 +6,8 @@ from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping
 
-from model.vae_model import create_vae_architecture
+from model.vae_architecture import create_encoder, create_decoder
+from model.vae_model import CustomVAE
 
 # ------------------------------
 # 1. Caricamento e preparazione dei dati
@@ -115,11 +35,19 @@ def train_vae_model(data, n_items, latent_dim=50, epochs=50, batch_size=64):
     print("Dati di addestramento:", train_data.shape)
     print("Dati di validazione:", val_data.shape)
 
-    vae, encoder, decoder = create_vae_architecture(n_items, latent_dim)
+    # Creazione dell'encoder e del decoder
+    encoder = create_encoder(n_items, latent_dim)
+    decoder = create_decoder(n_items, latent_dim)
+
+    # Creazione del modello VAE personalizzato
+    vae = CustomVAE(encoder, decoder)
+    vae.compile(optimizer=tf.keras.optimizers.Adam())
     print("Modello VAE creato con successo.")
 
+    # EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
 
+    # Addestramento del modello
     history = vae.fit(
         train_data,
         train_data,
@@ -211,3 +139,7 @@ if __name__ == "__main__":
 
     # Passo 5: Visualizzazione dei risultati
     plot_training_history(history)
+
+    # Passo 6: Salvataggio del modello
+    os.makedirs("model", exist_ok=True)
+    vae.save_weights(os.path.join("model", "vae_weights.weights.h5"))
