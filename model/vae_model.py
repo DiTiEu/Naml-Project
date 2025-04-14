@@ -15,9 +15,12 @@ class CustomVAE(Model):
         # Decodifica
         reconstructed = self.decoder(z)
 
-        # Aggiungi il termine di perdita (VAE loss) nel model training
-        self.add_loss(self.kl_loss(z_mean, z_log_var))
-        self.add_loss(self.reconstruction_loss(inputs, reconstructed))
+        recon_loss = self.reconstruction_loss(inputs, reconstructed)
+        kl = self.kl_loss(z_mean, z_log_var)
+
+        # Aggiungo la perdita totale (puoi anche loggarla)
+        total_loss = recon_loss + kl
+        self.add_loss(total_loss)
 
         return reconstructed
 
