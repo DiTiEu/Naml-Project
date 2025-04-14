@@ -41,7 +41,7 @@ def train_vae_model(data, n_items, latent_dim=50, epochs=50, batch_size=64):
 
     # Creazione del modello VAE personalizzato
     vae = CustomVAE(encoder, decoder)
-    vae.compile(optimizer=tf.keras.optimizers.Adam())
+    vae.compile(optimizer=tf.keras.optimizers.Adam(), loss=None)
     print("Modello VAE creato con successo.")
 
     # EarlyStopping
