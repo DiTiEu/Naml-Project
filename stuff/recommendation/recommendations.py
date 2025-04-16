@@ -1,5 +1,4 @@
 import streamlit as st
-from PIL import Image
 
 # --------------------------
 # FUNZIONI DI SIMULAZIONE / DUMMY
@@ -8,60 +7,85 @@ from PIL import Image
 def login_user(username, password):
     """
     Funzione dummy per il login utente.
-    In futuro, sostituisci questa funzione con il controllo delle credenziali sul tuo database o sistema di autenticazione.
+    Sostituisci questa funzione con il controllo delle credenziali reale.
     """
     return username == "user" and password == "pass"
 
-def generate_recommendations_VAE(user_ratings, selected_genre):
+def generate_movies_for_rating(selected_genre):
     """
-    Funzione dummy per generare raccomandazioni usando il VAE.
-    
-    Parametri:
-      - user_ratings: dizionario con i rating dei film.
-      - selected_genre: genere selezionato dalla select.
+    Genera in modo dummy 4 film da mostrare nella pagina di rating
+    in base al genere selezionato.
     
     In futuro:
-      - Qui dovrai processare i rating e il genere in input,
-      - Passarli al tuo modello VAE addestrato,
-      - E ottenere una lista di film consigliati.
+      - Qui potresti chiamare il tuo modello VAE per generare film consigliati
+        a partire dal genere.
     """
-    # Esempio con dati fittizi (dummy).
-    return [f"Film VAE 1 ({selected_genre})", f"Film VAE 2 ({selected_genre})", f"Film VAE 3 ({selected_genre})"]
+    # Se il genere è "any genre", puoi usare una stringa generica oppure uno shuffle.
+    if selected_genre == "any genre":
+        genre_str = "Generic"
+    else:
+        genre_str = selected_genre
+    # Restituisce 4 film dummy con il genere indicato.
+    return [f"Film {i} ({genre_str})" for i in range(1, 5)]
+
+def process_ratings_to_get_final(user_ratings, selected_genre):
+    """
+    Elabora i rating dati dall’utente per restituire i 3 film migliori.
+    
+    In questo dummy, ordiniamo i 4 film per rating (maggiore è meglio)
+    e restituiamo i primi 3.
+    
+    In futuro:
+      - Qui integrerai il tuo modello VAE che, a partire dai rating
+        e dal genere selezionato, genererà le raccomandazioni finali.
+    """
+    # Ordiniamo i film in base al rating in ordine decrescente.
+    sorted_movies = sorted(user_ratings.items(), key=lambda x: x[1], reverse=True)
+    top3 = [movie for movie, rating in sorted_movies[:3]]
+    return top3
 
 def generate_recommendations_guest(selected_genre):
     """
-    Funzione dummy per generare raccomandazioni per gli ospiti.
+    Funzione dummy per il caso guest: genera i 3 film con i rating più alti
+    per il genere selezionato.
     
     In futuro:
-      - Questa funzione dovrà prendere in considerazione il genere selezionato
-      - E restituire i 3 film con i rating più alti per quel genere.
+      - Qui filtrerai il dataset per genere e selezionerai quelli con i punteggi
+        più alti.
     """
-    # Dati dummy per esempio.
-    return [f"Film Top 1 ({selected_genre})", f"Film Top 2 ({selected_genre})", f"Film Top 3 ({selected_genre})"]
+    if selected_genre == "any genre":
+        genre_str = "Generic"
+    else:
+        genre_str = selected_genre
+    # Restituisce 3 film dummy.
+    return [f"Film Top {i} ({genre_str})" for i in range(1, 4)]
+
 
 # --------------------------
 # SETTAGGIO INIZIALE DELLO STATO
 # --------------------------
 if "role" not in st.session_state:
-    st.session_state.role = "user"  # ruolo corrente: "user" o "guest"
+    st.session_state.role = "user"  # "user" o "guest"
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False  # per utente "user"
 if "page" not in st.session_state:
-    st.session_state.page = "login"  # pagine: login, user_rating, user_rec, guest_rec
+    st.session_state.page = "login"  # le pagine possibili: login, user_rating, user_rec, guest_rec
+if "selected_genre" not in st.session_state:
+    st.session_state.selected_genre = "any genre"  # default
 
 # --------------------------
-# GESTIONE DELLE VARIAZIONI DI RUOLO
+# GESTIONE DEL RUOLO
 # --------------------------
-# Sidebar per selezionare il ruolo: "user" o "guest"
+# Sidebar per selezionare tra "user" e "guest"
 selected_role = st.sidebar.radio("Scegli il ruolo", ["user", "guest"])
 
-# Se l'utente era loggato come "user" ma cambia a "guest", allora esegui logout.
+# Se l'utente cambia da "user" a "guest", effettuare il logout e impostare la pagina guest.
 if selected_role == "guest":
     st.session_state.logged_in = False
     st.session_state.page = "guest_rec"
     st.session_state.role = "guest"
 else:
-    # Se viene selezionato "user" mentre era precedentemente ospite, resetta a login se non già loggato.
+    # Se passa a "user": se non era loggato, reimposta alla pagina di login.
     st.session_state.role = "user"
     if not st.session_state.logged_in:
         st.session_state.page = "login"
@@ -72,10 +96,9 @@ else:
 
 def login_page():
     st.title("🎬 Movie Recommender - Login")
-    st.write("Effettua il login per entrare nella sezione user.")
+    st.write("Effettua il login per accedere alla sezione user.")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-    
     if st.button("Login"):
         if login_user(username, password):
             st.session_state.logged_in = True
@@ -86,52 +109,59 @@ def login_page():
 
 def user_rating_page():
     st.title("⭐ Rate Some Movies")
-    st.write("Valuta i 4 film (da 0 a 5) per ricevere consigli personalizzati.")
+    st.write("Seleziona il genere e valuta i 4 film consigliati per ricevere i tuoi consigli personalizzati.")
     
-    # Dummy films: in futuro potresti iterare su un dataset di film
-    movies = ["Inception", "The Matrix", "Interstellar", "Avatar"]
-    user_ratings = {}
-    for movie in movies:
-        rating = st.slider(f"Quanto ti è piaciuto '{movie}'?", 0, 5, 3)
-        user_ratings[movie] = rating
-    
+    # Selezione del genere: se l'utente cambia genere, vengono rigenerati i film.
+    selected_genre = st.selectbox("Scegli un genere", ["any genre", "Action", "Comedy", "Drama", "Horror", "Sci-Fi"], 
+                                  index=["any genre", "Action", "Comedy", "Drama", "Horror", "Sci-Fi"].index(st.session_state.selected_genre))
+    st.session_state.selected_genre = selected_genre
+
+    # Generazione (dummy) dei 4 film da valutare in base al genere selezionato.
+    movies_for_rating = generate_movies_for_rating(selected_genre)
+    st.session_state.movies_for_rating = movies_for_rating  # li salviamo in session_state per coerenza
+
+    # Creiamo un dizionario per salvare i rating.
+    if "user_ratings" not in st.session_state:
+        st.session_state.user_ratings = {}
+    # Per ogni film generato, crea uno slider per il rating.
+    for movie in movies_for_rating:
+        # Se il film non è già stato valutato, impostiamo un default a 3.
+        default_rating = st.session_state.user_ratings.get(movie, 3)
+        rating = st.slider(f"Quanto ti è piaciuto '{movie}'?", 0, 5, default_rating, key=movie)
+        st.session_state.user_ratings[movie] = rating
+
     if st.button("Get Recommendations"):
-        # Salva i rating in session_state se necessario
-        st.session_state.user_ratings = user_ratings
-        # Passa alla pagina delle raccomandazioni per l'utente
+        # Processa i rating per ottenere le raccomandazioni finali (3 film migliori).
+        final_recommendations = process_ratings_to_get_final(st.session_state.user_ratings, selected_genre)
+        st.session_state.final_recommendations = final_recommendations
+        # Passa alla pagina delle raccomandazioni per l'utente.
         st.session_state.page = "user_rec"
 
 def user_recommendations_page():
     st.title("🎥 User Recommendations")
-    st.write("Seleziona un genere per affinare i consigli.")
+    st.write("I film qui visualizzati sono frutto dei rating che hai dato.")
     
-    # Select per scegliere genere; include opzione "any genre"
-    genre = st.selectbox("Scegli un genere", ["any genre", "Action", "Comedy", "Drama", "Horror", "Sci-Fi"])
-    
-    if st.button("Recommend Movies"):
-        # Genera raccomandazioni utilizzando il VAE (dummy per ora)
-        recommendations = generate_recommendations_VAE(st.session_state.user_ratings, genre)
-        st.session_state.recommendations = recommendations
-    
-    # Visualizza le raccomandazioni se disponibili
-    if "recommendations" in st.session_state:
+    # Visualizza i film finali (3 film) ottenuti dal processo dei rating.
+    if "final_recommendations" in st.session_state:
         st.subheader("Film Consigliati:")
-        for movie in st.session_state.recommendations:
+        for movie in st.session_state.final_recommendations:
             st.markdown(f"- {movie}")
+    else:
+        st.warning("Nessuna raccomandazione disponibile. Prima valuta alcuni film.")
     
-    # Pulsante per tornare alla pagina di rating
+    # Pulsante per tornare alla pagina dei rating (in questo caso verranno rigenerati se il genere è stato cambiato).
     if st.button("Back"):
         st.session_state.page = "user_rating"
 
 def guest_recommendations_page():
     st.title("🎥 Guest Recommendations")
-    st.write("Seleziona un genere per ricevere i consigli in base ai film con rating più alti.")
+    st.write("Seleziona un genere per ricevere i consigli basati sui film con rating più alti.")
     
-    genre = st.selectbox("Scegli un genere", ["any genre", "Action", "Comedy", "Drama", "Horror", "Sci-Fi"])
+    guest_genre = st.selectbox("Scegli un genere", ["any genre", "Action", "Comedy", "Drama", "Horror", "Sci-Fi"])
     
     if st.button("Recommend Movies"):
-        # Genera raccomandazioni per ospiti basandosi sui film con rating più alti (dummy per ora)
-        recommendations = generate_recommendations_guest(genre)
+        # Genera le raccomandazioni per guest (3 film con i rating più alti) in base al genere.
+        recommendations = generate_recommendations_guest(guest_genre)
         st.session_state.recommendations = recommendations
     
     if "recommendations" in st.session_state:
@@ -140,7 +170,7 @@ def guest_recommendations_page():
             st.markdown(f"- {movie}")
 
 # --------------------------
-# GESTIONE DI NAVIGAZIONE DELLE PAGINE
+# GESTIONE DELLA NAVIGAZIONE DELLE PAGINE
 # --------------------------
 if st.session_state.role == "user":
     if not st.session_state.logged_in:
@@ -151,7 +181,7 @@ if st.session_state.role == "user":
         elif st.session_state.page == "user_rec":
             user_recommendations_page()
         else:
-            # Fallback: torna a login se lo stato non è coerente
+            # Fallback in caso di stato incoerente: ritorno alla pagina di login.
             st.session_state.page = "login"
             login_page()
 elif st.session_state.role == "guest":
@@ -160,20 +190,21 @@ elif st.session_state.role == "guest":
 # --------------------------
 # COMMENTI PER FUTURI AGGIORNAMENTI:
 # --------------------------
-# - Nella funzione generate_recommendations_VAE:
-#   Dovrai implementare la logica per:
-#     1. Preprocessare i rating inseriti dall'utente (ad esempio normalizzarli o applicare encoding).
-#     2. Passare questi dati al tuo modello di VAE per ottenere una rappresentazione latente.
-#     3. Generare le raccomandazioni a partire dalla rappresentazione latente.
+# - La funzione generate_movies_for_rating():
+#     In futuro potresti:
+#       1. Preprocessare i dati del genere selezionato.
+#       2. Inviare questi dati al tuo modello VAE addestrato.
+#       3. Ottenere come output una lista di film da presentare all'utente.
 #
-# - Nella funzione generate_recommendations_guest:
-#   Dovrai invece implementare la logica per:
-#     1. Filtrare il dataset dei film in base al genere selezionato.
-#     2. Ordinarli per rating e prendere i 3 film con il punteggio più alto.
+# - La funzione process_ratings_to_get_final():
+#     Sostituirai la logica dummy con:
+#       1. L'elaborazione dei rating (eventuale normalizzazione o encoding).
+#       2. L'integrazione del modello VAE per generare raccomandazioni finali.
 #
-# - Quando implementerai il training del modello e avrai il dataset
-#   potresti avere un modulo dedicato (es. models/vae_model.py) che contiene
-#   funzioni per il preprocessing, addestramento e predizione del modello.
+# - Per i dati guest in generate_recommendations_guest():
+#     Quando avrai il dataset, potrai:
+#       1. Filtrare i film in base al genere.
+#       2. Ordinare per rating e restituire i top 3.
 #
-# - Eventuali immagini o locandine possono essere aggiunte utilizzando st.image()
-#   nel rendering delle raccomandazioni.
+# - In fase di training del modello, potresti creare un modulo dedicato
+#   (ad es. models/vae_model.py) per il preprocessing, training e predizione.
