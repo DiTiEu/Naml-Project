@@ -10,3 +10,4 @@ naml_venv/*
 saved_models/
 saved_models/*
 ./saved_models/*
+training_loss_plot.png
