@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model # type: ignore
 import sys
 import os
 
@@ -34,7 +34,7 @@ average_ratings = average_ratings.merge(movies_df[["item_id", "movie_title"] + l
 @st.cache_resource
 def load_vae_model():
     # Se hai usato una classe custom, registrala prima qui
-    from tensorflow.keras.utils import get_custom_objects
+    from tensorflow.keras.utils import get_custom_objects # type: ignore
     from model.vae_model import CustomVAE
     get_custom_objects().update({"VAE": CustomVAE})
     return load_model("saved_models/vae_model.keras", custom_objects={"VAE": CustomVAE}, compile=False)
