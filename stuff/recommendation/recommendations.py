@@ -1,16 +1,59 @@
+#streamlit run stuff/recommendation/recommendations.py
+
+import os
 import streamlit as st
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import sys
+import os
+
+# Aggiungi la directory principale del progetto al percorso di ricerca
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
+# Caricamento del dataset utenti
+data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
+users_df = pd.read_csv(data_path)  # Aggiorna il path se necessario
+
+# Caricamento dataset dei film
+movies_df = pd.read_csv("data/cleaned/items_clean.csv")  # Colonne: item_id, movie_title, ..., generi binari
+
+# Merge con ratings
+ratings = pd.read_csv("data/cleaned/ratings_clean.csv")  # Colonne: user_id, item_id, rating, timestamp
+merged_df = pd.merge(ratings, movies_df, on="item_id")
+
+# Calcolo del rating medio per ogni film
+average_ratings = merged_df.groupby("item_id")["rating"].mean().reset_index()
+average_ratings.columns = ["item_id", "avg_rating"]
+
+# Aggiunta del titolo e generi al dataframe dei rating medi
+average_ratings = average_ratings.merge(movies_df[["item_id", "movie_title"] + list(movies_df.columns[5:])], on="item_id")
+
+# Carica il modello VAE salvato (una volta sola, fuori dalla funzione per efficienza)
+@st.cache_resource
+def load_vae_model():
+    # Se hai usato una classe custom, registrala prima qui
+    from tensorflow.keras.utils import get_custom_objects
+    from model.vae_model import CustomVAE
+    get_custom_objects().update({"VAE": CustomVAE})
+    return load_model("saved_models/vae_model.keras", custom_objects={"VAE": CustomVAE}, compile=False)
 
 # --------------------------
 # FUNZIONI DI SIMULAZIONE / DUMMY
 # --------------------------
 
-def login_user(username, password):
+def login_user(user_id, password):
     """
-    Funzione dummy per il login utente.
-    In futuro sostituirai questa funzione con il controllo delle credenziali reale,
-    es. confrontando username e password con un database.
+    Verifica se l'user_id esiste nel dataset e la password è corretta.
     """
-    return username == "user" and password == "pass"
+    if password != "pass":
+        return False
+    try:
+        user_id = int(user_id)  # Assicura che sia un numero
+    except ValueError:
+        return False
+    return user_id in users_df["user_id"].values
 
 def generate_initial_movies():
     """
@@ -20,36 +63,38 @@ def generate_initial_movies():
     """
     return ["Film 1", "Film 2", "Film 3", "Film 4"]
 
-def generate_recommendations_VAE(user_ratings):
+def generate_recommendations_VAE(user_id):
     """
-    Funzione dummy che simula il comportamento del VAE.
-    
-    Parametri:
-      - user_ratings: dizionario in cui le chiavi sono i titoli dei film visualizzati e
-                      i valori sono i rating assegnati dall'utente.
-    
-    In futuro:
-      - Qui dovrai preprocessare i rating (eventuale normalizzazione o encoding),
-      - Passare questi dati al tuo modello VAE addestrato per ottenere una rappresentazione latente
-      - E generare 4 nuovi film consigliati in base ai rating appena forniti.
+    Genera raccomandazioni personalizzate per un utente usando il modello VAE.
     """
-    # Per la demo, restituisce 4 nuovi film basati su una logica dummy.
-    return [f"Film VAE {i}" for i in range(1, 5)]
+    # 1. Estrai il vettore rating per l'utente
+    user_vector = ratings_matrix[user_id - 1]  # -1 se user_id parte da 1
+
+    # 2. Predici i rating
+    predicted_ratings = vae.predict(user_vector[np.newaxis, :])[0]  # shape: (num_movies,)
+
+    # 3. Maschera i film già visti (con rating > 0)
+    seen_mask = user_vector > 0
+    predicted_ratings[seen_mask] = -np.inf
+
+    # 4. Seleziona i 4 film con i rating previsti più alti
+    top_movie_ids = np.argsort(predicted_ratings)[-4:][::-1]
+    recommended_titles = [movie_id_to_title[mid] for mid in top_movie_ids]
+
+    return recommended_titles
 
 def generate_recommendations_guest(selected_genre):
     """
-    Funzione dummy per generare le raccomandazioni per gli ospiti.
-    
-    In futuro:
-      - Potrai filtrare il dataset in base al genere selezionato e
-        selezionare i 3 film con i rating più alti.
+    Ritorna i 4 film col rating medio più alto per il genere selezionato.
     """
     if selected_genre == "any genre":
-        genre_str = "Generic"
+        top_movies = average_ratings.sort_values("avg_rating", ascending=False).head(4)
     else:
-        genre_str = selected_genre
-    # Restituisce 3 film dummy.
-    return [f"Film Top {i} ({genre_str})" for i in range(1, 4)]
+        # Filtra solo i film che hanno il flag 1 per il genere selezionato
+        genre_filtered = average_ratings[average_ratings[selected_genre] == 1]
+        top_movies = genre_filtered.sort_values("avg_rating", ascending=False).head(4)
+
+    return list(top_movies["movie_title"])
 
 # --------------------------
 # SETTAGGIO INIZIALE DELLO STATO
@@ -86,16 +131,18 @@ else:
 # --------------------------
 # DEFINIZIONE DELLE PAGINE PER USER
 # --------------------------
+
 def login_page():
     st.title("🎬 Movie Recommender - Login")
-    st.write("Effettua il login per ricevere consigli personalizzati.")
-    username = st.text_input("Username")
+    st.write("Inserisci il tuo ID utente per ricevere consigli personalizzati.")
+    user_id = st.text_input("User ID")  # Cambiato da username a user_id
     password = st.text_input("Password", type="password")
+    
     if st.button("Login"):
-        if login_user(username, password):
+        if login_user(user_id, password):
             st.session_state.logged_in = True
+            st.session_state.user_id = int(user_id)  # Salva user_id nella sessione
             st.success("Login effettuato con successo!")
-            # Dopo il login, si passa direttamente alla pagina di rating
             st.session_state.page = "rating"
         else:
             st.error("Credenziali errate. Riprova.")
@@ -112,13 +159,11 @@ def rating_page():
         st.session_state.user_ratings[movie] = rating
     
     if st.button("Get Recommendations"):
-        # Passa i rating alla funzione dummy del VAE e aggiorna i film suggeriti
-        new_movies = generate_recommendations_VAE(st.session_state.user_ratings)
+        user_id = st.session_state.user_id
+        new_movies = generate_recommendations_VAE(user_id)
         st.session_state.current_movies = new_movies
-        # Reset dei rating per i nuovi film
-        st.session_state.user_ratings = {}
         st.success("Nuove raccomandazioni generate!")
-        st.experimental_rerun()
+        st.rerun()
 
 # --------------------------
 # DEFINIZIONE DELLA PAGINA PER GUEST
@@ -143,7 +188,24 @@ def guest_recommendations_page():
 # --------------------------
 # GESTIONE DELLE PAGINE PRINCIPALI
 # --------------------------
+
+# Carica la matrice dei rating
+data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
+ratings = pd.read_csv(data_path)
+# Costruisci la matrice utente-film
+user_item_matrix = ratings.pivot_table(index="user_id", columns="item_id", values="rating", fill_value=0)
+# Converti in numpy array
+ratings_matrix = user_item_matrix.to_numpy().astype("float32")
+
+# Mappature: movie_id → title
+movies_df = pd.read_csv("data/cleaned/items_clean.csv")  # Deve avere colonne movie_id, title
+movie_id_to_title = dict(zip(movies_df["item_id"], movies_df["movie_title"]))
+NUM_MOVIES = len(movies_df)
+
 if st.session_state.role == "user":
+    print("Caricamento del modello VAE...")
+    vae = load_vae_model()
+    print("Modello VAE caricato con successo.")
     if not st.session_state.logged_in:
         login_page()
     else:

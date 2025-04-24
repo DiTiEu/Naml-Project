@@ -15,22 +15,34 @@ from model.vae_model import CustomVAE
 
 def load_and_prepare_data():
     data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
-    ratings_df = pd.read_csv(data_path)
-    print("Dataset delle valutazioni caricato. Forma:", ratings_df.shape)
+    #ratings_df = pd.read_csv(data_path)
+    #print("Dataset delle valutazioni caricato. Forma:", ratings_df.shape)
 
-    user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
-    print("Matrice utente-elemento creata. Forma:", user_item_matrix.shape)
+    #user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
+    #print("Matrice utente-elemento creata. Forma:", user_item_matrix.shape)
 
-    user_item_matrix_normalized = (user_item_matrix - 1) / 4
-    data = user_item_matrix_normalized.values.astype('float32')
+    #user_item_matrix_normalized = (user_item_matrix - 1) / 4
+    #data = user_item_matrix_normalized.values.astype('float32')
 
-    return data, user_item_matrix
+    #return data, user_item_matrix
+
+    ################
+
+    ratings = pd.read_csv(data_path)
+
+    # Costruisci la matrice utente-film
+    user_item_matrix = ratings.pivot_table(index="user_id", columns="item_id", values="rating", fill_value=0)
+
+    # Converti in numpy array
+    data_matrix = user_item_matrix.to_numpy().astype("float32")
+
+    return data_matrix, user_item_matrix
 
 # ------------------------------
 # 2. Creazione e addestramento del modello VAE
 # ------------------------------
 
-def train_vae_model(data, n_items, latent_dim=50, epochs=50, batch_size=64):
+def train_vae_model(data, n_items, latent_dim=10, epochs=100, batch_size=8):
     train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
     print("Dati di addestramento:", train_data.shape)
     print("Dati di validazione:", val_data.shape)
@@ -38,18 +50,18 @@ def train_vae_model(data, n_items, latent_dim=50, epochs=50, batch_size=64):
     # Creazione dell'encoder e del decoder
     encoder = create_encoder(n_items, latent_dim)
     decoder = create_decoder(n_items, latent_dim)
-
+    
     # Creazione del modello VAE personalizzato
     vae = CustomVAE(encoder, decoder)
-    vae.compile(optimizer=tf.keras.optimizers.Adam(), loss=None)
+    vae.compile(optimizer=tf.keras.optimizers.Adam())
     print("Modello VAE creato con successo.")
 
     # EarlyStopping
     early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
 
     # Addestramento del modello
-    history = vae.fit(
-        train_data,
+    history = vae.fit( #attenzione a righe o colonne
+        train_data, #matrice X
         train_data,
         epochs=epochs,
         batch_size=batch_size,
@@ -128,6 +140,10 @@ if __name__ == "__main__":
     # Passo 2: Creazione e addestramento del modello VAE
     vae, encoder, decoder, history, val_data = train_vae_model(data, n_items)
 
+    # Salvataggio del modello intero dopo il training
+    os.makedirs("saved_models", exist_ok=True)
+    vae.save("saved_models/vae_model.keras", save_format="keras")
+
     # Passo 3: Predizione delle valutazioni
     predicted_ratings = predict_ratings(vae, val_data)
 
@@ -142,4 +158,3 @@ if __name__ == "__main__":
 
     # Passo 6: Salvataggio del modello
     os.makedirs("model", exist_ok=True)
-    vae.save_weights(os.path.join("model", "vae_weights.weights.h5"))
