@@ -6,3 +6,7 @@ naml_venv/*
 .vscode/*
 .venv/
 .venv/*
+./saved_models/
+saved_models/
+saved_models/*
+./saved_models/*
