@@ -35,6 +35,8 @@ def load_and_prepare_data():
 
     # Converti in numpy array
     data_matrix = user_item_matrix.to_numpy().astype("float32")
+    data_matrix = (data_matrix - 1) / 4
+    data_matrix[data_matrix == -0.25] = 0
 
     return data_matrix, user_item_matrix
 
@@ -77,6 +79,18 @@ def train_vae_model(data, n_items, latent_dim=10, epochs=100, batch_size=8):
 
 def predict_ratings(vae, data):
     predicted_ratings = vae.predict(data)
+    #print delle prime 5 righe
+    # print("Prime 5 righe delle valutazioni predette:", predicted_ratings[:5])
+    # #shape
+    # print("Forma delle valutazioni predette:", predicted_ratings.shape)
+    #denormalizzazione
+    predicted_ratings = (predicted_ratings * 4) + 1
+    predicted_ratings[predicted_ratings < 1] = 1
+    predicted_ratings[predicted_ratings > 5] = 5
+    #print delle prime 5 righe
+    # print("Prime 5 righe delle valutazioni denormalizzate:", predicted_ratings[:5])
+    # #shape
+    # print("Forma delle valutazioni predette:", predicted_ratings.shape)
     return predicted_ratings
 
 # ------------------------------

@@ -1,7 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, Lambda
-from tensorflow.keras.models import Model
-from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Input, Dense, Lambda # type: ignore
+from tensorflow.keras.models import Model # type: ignore
+from tensorflow.keras import backend as K # type: ignore
 
 def sampling(args):
     z_mean, z_log_var = args

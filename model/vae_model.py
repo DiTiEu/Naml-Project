@@ -1,6 +1,7 @@
-from tensorflow.keras import Model
-from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras import Model # type: ignore
+from tensorflow.keras.layers import Input, Dense # type: ignore
 import tensorflow as tf
+from keras.saving import serialize_keras_object # type: ignore
 
 class CustomVAE(Model):
     def __init__(self, encoder, decoder, **kwargs):
@@ -23,6 +24,18 @@ class CustomVAE(Model):
         self.add_loss(total_loss)
 
         return reconstructed
+    
+    def get_config(self):
+        return {
+            "encoder": serialize_keras_object(self.encoder),
+            "decoder": serialize_keras_object(self.decoder),
+        }
+
+    @classmethod
+    def from_config(cls, config):
+        encoder = tf.keras.models.deserialize(config.pop("encoder"))
+        decoder = tf.keras.models.deserialize(config.pop("decoder"))
+        return cls(encoder, decoder, **config)
 
     def kl_loss(self, z_mean, z_log_var):
         # Perdita di Kullback-Leibler per il VAE

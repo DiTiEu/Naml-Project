@@ -37,7 +37,8 @@ def load_vae_model():
     from tensorflow.keras.utils import get_custom_objects # type: ignore
     from model.vae_model import CustomVAE
     get_custom_objects().update({"VAE": CustomVAE})
-    return load_model("saved_models/vae_model.keras", custom_objects={"VAE": CustomVAE}, compile=False)
+    loaded_model = tf.keras.models.load_model("saved_models/vae_model.keras", custom_objects={"VAE": CustomVAE}, compile=False)
+    return loaded_model
 
 # --------------------------
 # FUNZIONI DI SIMULAZIONE / DUMMY
@@ -72,6 +73,8 @@ def generate_recommendations_VAE(user_id):
 
     # 2. Predici i rating
     predicted_ratings = vae.predict(user_vector[np.newaxis, :])[0]  # shape: (num_movies,)
+    predicted_ratings[predicted_ratings == 0] = -0.25
+    predicted_ratings = predicted_ratings * 4 + 1
 
     # 3. Maschera i film già visti (con rating > 0)
     seen_mask = user_vector > 0
