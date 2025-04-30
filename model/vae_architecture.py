@@ -2,7 +2,9 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Lambda # type: ignore
 from tensorflow.keras.models import Model # type: ignore
 from tensorflow.keras import backend as K # type: ignore
+import keras
 
+@keras.saving.register_keras_serializable(package="vae_arch", name="sampling_fn")
 def sampling(args):
     z_mean, z_log_var = args
     batch = K.shape(z_mean)[0]
