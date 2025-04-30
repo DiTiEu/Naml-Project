@@ -4,7 +4,7 @@ import tensorflow as tf
 from keras.saving import serialize_keras_object # type: ignore
 import keras
 
-@keras.saving.register_keras_serializable(package="MyCustomVAE")
+@keras.saving.register_keras_serializable(package="CustomVAE")
 class CustomVAE(Model):
     def __init__(self, encoder, decoder, **kwargs):
         super(CustomVAE, self).__init__(**kwargs)

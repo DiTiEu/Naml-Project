@@ -36,8 +36,27 @@ def load_vae_model():
     # Se hai usato una classe custom, registrala prima qui
     from tensorflow.keras.utils import get_custom_objects # type: ignore
     from model.vae_model import CustomVAE
-    get_custom_objects().update({"VAE": CustomVAE})
-    loaded_model = tf.keras.models.load_model("saved_models/vae_model.keras", custom_objects={"VAE": CustomVAE}, compile=False)
+    get_custom_objects().update({"CustomVAE": CustomVAE})
+    loaded_model = tf.keras.models.load_model("saved_models/vae_model.keras", custom_objects={"CustomVAE": CustomVAE}, compile=False)
+    return loaded_model
+
+@st.cache_resource
+def load_vae_model():
+    from tensorflow.keras.utils import get_custom_objects  # type: ignore
+    from model.vae_model import CustomVAE
+    from model.vae_architecture import sampling  # importa anche la funzione se è in un altro file
+
+    # Assicurati che sia registrata prima del load_model
+    get_custom_objects().update({
+        "CustomVAE": CustomVAE,
+        "vae_arch>sampling_fn": sampling  # questo è il nome completo registrato
+    })
+
+    loaded_model = tf.keras.models.load_model(
+        "saved_models/vae_model.keras",
+        custom_objects={"CustomVAE": CustomVAE, "vae_arch>sampling_fn": sampling},
+        compile=False
+    )
     return loaded_model
 
 # --------------------------
