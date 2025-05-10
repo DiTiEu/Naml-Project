@@ -9,6 +9,32 @@ from tensorflow.keras.models import load_model # type: ignore
 import sys
 import os
 
+import json
+
+SEEN_MOVIES_FILE = "data/seen_movies.json"
+
+def load_seen_movies():
+    if not os.path.exists(SEEN_MOVIES_FILE):
+        return {}
+    with open(SEEN_MOVIES_FILE, "r") as f:
+        return json.load(f)
+
+def save_seen_movies(seen_movies_dict):
+    with open(SEEN_MOVIES_FILE, "w") as f:
+        json.dump(seen_movies_dict, f)
+
+def get_seen_movies_for_user(user_id):
+    seen_movies_dict = load_seen_movies()
+    return set(seen_movies_dict.get(str(user_id), []))
+
+def add_seen_movies_for_user(user_id, new_seen_movies):
+    seen_movies_dict = load_seen_movies()
+    user_key = str(user_id)
+    seen_movies = set(seen_movies_dict.get(user_key, []))
+    seen_movies.update(new_seen_movies)
+    seen_movies_dict[user_key] = list(seen_movies)
+    save_seen_movies(seen_movies_dict)
+
 # Aggiungi la directory principale del progetto al percorso di ricerca
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -85,22 +111,33 @@ def generate_initial_movies():
 
 def generate_recommendations_VAE(user_id):
     """
-    Genera raccomandazioni personalizzate per un utente usando il modello VAE.
+    Genera raccomandazioni personalizzate per un utente usando il modello VAE,
+    escludendo i film già visti anche in precedenza.
     """
     # 1. Estrai il vettore rating per l'utente
     user_vector = ratings_matrix[user_id - 1]  # -1 se user_id parte da 1
 
     # 2. Predici i rating
-    predicted_ratings = vae.predict(user_vector[np.newaxis, :])[0]  # shape: (num_movies,)
+    predicted_ratings = vae.predict(user_vector[np.newaxis, :])[0]
     predicted_ratings[predicted_ratings == 0] = -0.25
     predicted_ratings = predicted_ratings * 4 + 1
 
-    # 3. Maschera i film già visti (con rating > 0)
+    # 3. Maschera i film già visti (rating > 0 nel dataset)
     seen_mask = user_vector > 0
     predicted_ratings[seen_mask] = -np.inf
 
-    # 4. Seleziona i 4 film con i rating previsti più alti
+    # 4. Maschera i film già raccomandati e visti (persistenza su file)
+    seen_movies_persistent = get_seen_movies_for_user(user_id)
+    for movie_id in seen_movies_persistent:
+        predicted_ratings[int(movie_id)] = -np.inf
+
+    # 5. Seleziona i 4 film con i rating più alti tra quelli non visti
     top_movie_ids = np.argsort(predicted_ratings)[-4:][::-1]
+
+    # 6. Salva i film come "visti" per questo utente
+    add_seen_movies_for_user(user_id, top_movie_ids.tolist())
+
+    # 7. Traduci in titoli
     recommended_titles = [movie_id_to_title[mid] for mid in top_movie_ids]
 
     return recommended_titles
@@ -164,6 +201,7 @@ def login_page():
         if login_user(user_id, password):
             st.session_state.logged_in = True
             st.session_state.user_id = int(user_id)  # Salva user_id nella sessione
+            st.session_state.current_movies = generate_recommendations_VAE(int(user_id))
             st.success("Login effettuato con successo!")
             st.session_state.page = "rating"
         else:
