@@ -35,7 +35,7 @@ def add_seen_movies_for_user(user_id, new_seen_movies):
     save_seen_movies(seen_movies_dict)
 
 # Aggiungi la directory principale del progetto al percorso di ricerca
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
 # Caricamento del dataset utenti
 data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
