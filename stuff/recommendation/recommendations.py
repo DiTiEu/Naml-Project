@@ -8,7 +8,6 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model # type: ignore
 import sys
 import os
-
 import json
 
 SEEN_MOVIES_FILE = "data/seen_movies.json"
@@ -138,7 +137,8 @@ def generate_recommendations_VAE(user_id):
     add_seen_movies_for_user(user_id, top_movie_ids.tolist())
 
     # 7. Traduci in titoli
-    recommended_titles = [movie_id_to_title[mid] for mid in top_movie_ids]
+    # recommended_titles = [movie_id_to_title[mid] for mid in top_movie_ids]
+    recommended_titles = [movie_id_to_title[index_to_movie_id[mid]] for mid in top_movie_ids]
 
     return recommended_titles
 
@@ -254,6 +254,8 @@ data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
 ratings = pd.read_csv(data_path)
 # Costruisci la matrice utente-film
 user_item_matrix = ratings.pivot_table(index="user_id", columns="item_id", values="rating", fill_value=0)
+# Mappa da indice (colonna) a ID film originale
+index_to_movie_id = list(user_item_matrix.columns)
 # Converti in numpy array
 ratings_matrix = user_item_matrix.to_numpy().astype("float32")
 
