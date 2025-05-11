@@ -15,19 +15,6 @@ from model.vae_model import CustomVAE
 
 def load_and_prepare_data():
     data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
-    #ratings_df = pd.read_csv(data_path)
-    #print("Dataset delle valutazioni caricato. Forma:", ratings_df.shape)
-
-    #user_item_matrix = ratings_df.pivot(index='user_id', columns='item_id', values='rating').fillna(0)
-    #print("Matrice utente-elemento creata. Forma:", user_item_matrix.shape)
-
-    #user_item_matrix_normalized = (user_item_matrix - 1) / 4
-    #data = user_item_matrix_normalized.values.astype('float32')
-
-    #return data, user_item_matrix
-
-    ################
-
     ratings = pd.read_csv(data_path)
 
     # Costruisci la matrice utente-film
@@ -35,16 +22,18 @@ def load_and_prepare_data():
 
     # Converti in numpy array
     data_matrix = user_item_matrix.to_numpy().astype("float32")
-    data_matrix = (data_matrix - 1) / 4
-    data_matrix[data_matrix == -0.25] = 0
-
+    
+    # Normalizza solo i valori non-zero (ratings effettivi)
+    mask = data_matrix > 0
+    data_matrix[mask] = (data_matrix[mask] - 1) / 4  # Normalizza i ratings da [1,5] a [0,1]
+    
     return data_matrix, user_item_matrix
 
 # ------------------------------
 # 2. Creazione e addestramento del modello VAE
 # ------------------------------
 
-def train_vae_model(data, n_items, latent_dim=10, epochs=100, batch_size=8):
+def train_vae_model(data, n_items, latent_dim=64, epochs=200, batch_size=128):
     train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
     print("Dati di addestramento:", train_data.shape)
     print("Dati di validazione:", val_data.shape)
@@ -53,22 +42,56 @@ def train_vae_model(data, n_items, latent_dim=10, epochs=100, batch_size=8):
     encoder = create_encoder(n_items, latent_dim)
     decoder = create_decoder(n_items, latent_dim)
     
-    # Creazione del modello VAE personalizzato
-    vae = CustomVAE(encoder, decoder)
-    vae.compile(optimizer=tf.keras.optimizers.Adam())
+    # Creazione del modello VAE personalizzato con beta più alto
+    vae = CustomVAE(encoder, decoder, beta=0.2, kl_weight=0.0)  # Iniziamo con kl_weight=0
+    
+    # Learning rate scheduling più conservativo
+    initial_learning_rate = 0.001
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=2000,
+        decay_rate=0.95,
+        staircase=True
+    )
+    
+    optimizer = tf.keras.optimizers.Adam(
+        learning_rate=lr_schedule,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-07
+    )
+    vae.compile(optimizer=optimizer)
     print("Modello VAE creato con successo.")
 
-    # EarlyStopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
+    # Callback per il warm-up del KL loss
+    class KLWeightScheduler(tf.keras.callbacks.Callback):
+        def __init__(self, n_epochs):
+            super(KLWeightScheduler, self).__init__()
+            self.n_epochs = n_epochs
+            
+        def on_epoch_begin(self, epoch, logs=None):
+            # Aumenta gradualmente il peso del KL loss
+            kl_weight = min(1.0, epoch / (self.n_epochs * 0.3))  # Raggiunge 1.0 al 30% delle epoche
+            self.model.kl_weight_tensor.assign(kl_weight)
+            print(f"\nKL Weight: {kl_weight:.4f}")
+
+    # EarlyStopping con patience maggiore
+    early_stopping = EarlyStopping(
+        monitor='val_loss',
+        patience=25,
+        restore_best_weights=True,
+        min_delta=1e-5
+    )
 
     # Addestramento del modello
-    history = vae.fit( #attenzione a righe o colonne
-        train_data, #matrice X
+    history = vae.fit(
+        train_data,
         train_data,
         epochs=epochs,
         batch_size=batch_size,
         validation_data=(val_data, val_data),
-        callbacks=[early_stopping]
+        callbacks=[early_stopping, KLWeightScheduler(epochs)],
+        shuffle=True
     )
 
     return vae, encoder, decoder, history, val_data
