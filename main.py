@@ -9,10 +9,6 @@ from tensorflow.keras.callbacks import EarlyStopping # type: ignore
 from model.vae_architecture import create_encoder, create_decoder
 from model.vae_model import CustomVAE
 
-# ------------------------------
-# 1. Caricamento e preparazione dei dati
-# ------------------------------
-
 def load_and_prepare_data():
     data_path = os.path.join("data", "cleaned", "ratings_clean.csv")
     #ratings_df = pd.read_csv(data_path)
@@ -30,37 +26,28 @@ def load_and_prepare_data():
 
     ratings = pd.read_csv(data_path)
 
-    # Costruisci la matrice utente-film
     user_item_matrix = ratings.pivot_table(index="user_id", columns="item_id", values="rating", fill_value=0)
 
-    # Converti in numpy array
     data_matrix = user_item_matrix.to_numpy().astype("float32")
     data_matrix = (data_matrix - 1) / 4
     data_matrix[data_matrix == -0.25] = 0
     return data_matrix, user_item_matrix
-
-# ------------------------------
-# 2. Creazione e addestramento del modello VAE
-# ------------------------------
 
 def train_vae_model(data, n_items, latent_dim=64, epochs=200, batch_size=128):
     train_data, val_data = train_test_split(data, test_size=0.2, random_state=42)
     print("Dati di addestramento:", train_data.shape)
     print("Dati di validazione:", val_data.shape)
 
-    # Creazione dell'encoder e del decoder
     encoder = create_encoder(n_items, latent_dim)
     decoder = create_decoder(n_items, latent_dim)
     
-    # Creazione del modello VAE personalizzato con beta più alto
     vae = CustomVAE(encoder, decoder)
     vae.compile(optimizer=tf.keras.optimizers.Adam())
     print("Modello VAE creato con successo.")
     early_stopping = EarlyStopping(monitor='val_loss', patience=8, restore_best_weights=True)
 
-
-    history = vae.fit( #attenzione a righe o colonne
-        train_data, #matrice X
+    history = vae.fit(
+        train_data,
         train_data,
         epochs=epochs,
         batch_size=batch_size,
@@ -70,29 +57,13 @@ def train_vae_model(data, n_items, latent_dim=64, epochs=200, batch_size=128):
 
     return vae, encoder, decoder, history, val_data
 
-# ------------------------------
-# 3. Predizione delle valutazioni
-# ------------------------------
-
 def predict_ratings(vae, data):
     predicted_ratings = vae.predict(data)
-    #print delle prime 5 righe
-    # print("Prime 5 righe delle valutazioni predette:", predicted_ratings[:5])
-    # #shape
-    # print("Forma delle valutazioni predette:", predicted_ratings.shape)
-    #denormalizzazione
     predicted_ratings = (predicted_ratings * 4) + 1
     predicted_ratings[predicted_ratings < 1] = 1
     predicted_ratings[predicted_ratings > 5] = 5
-    #print delle prime 5 righe
-    # print("Prime 5 righe delle valutazioni denormalizzate:", predicted_ratings[:5])
-    # #shape
-    # print("Forma delle valutazioni predette:", predicted_ratings.shape)
+    
     return predicted_ratings
-
-# ------------------------------
-# 4. Valutazione delle prestazioni
-# ------------------------------
 
 def compute_precision_recall_f1(true_ratings, predicted_ratings, k=5):
     precisions = []
@@ -121,51 +92,37 @@ def compute_precision_recall_f1(true_ratings, predicted_ratings, k=5):
 
     return avg_precision, avg_recall, avg_f1
 
-# ------------------------------
-# 5. Visualizzazione dei risultati
-# ------------------------------
-
 def plot_training_history(history):
     plt.figure(figsize=(10, 5))
     plt.plot(history.history['loss'], label='Loss di addestramento')
     plt.plot(history.history['val_loss'], label='Loss di validazione')
     plt.title('Andamento della loss durante l\'addestramento')
-    plt.xlabel('Epoche')
-    plt.ylabel('Loss')
+    plt.xlabel('Epoche [n]')
+    plt.ylabel('Loss [MSE]')
+    plt.yscale('log')
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.savefig('training_loss_plot.png')
     plt.show()
 
-# ------------------------------
-# Main
-# ------------------------------
-
 if __name__ == "__main__":
-    # Passo 1: Caricamento e preparazione dei dati
     data, user_item_matrix = load_and_prepare_data()
     n_items = data.shape[1]
     n_users = data.shape[0]
 
-    # Passo 2: Creazione e addestramento del modello VAE
     vae, encoder, decoder, history, val_data = train_vae_model(data, n_items)
 
-    # Salvataggio del modello intero dopo il training
     os.makedirs("saved_models", exist_ok=True)
     vae.save("saved_models/vae_model.keras", save_format="keras")
 
-    # Passo 3: Predizione delle valutazioni
     predicted_ratings = predict_ratings(vae, val_data)
 
-    # Passo 4: Valutazione delle prestazioni
     precision, recall, f1 = compute_precision_recall_f1(val_data, predicted_ratings, k=5)
     print(f"Precision@5: {precision:.4f}")
     print(f"Recall@5: {recall:.4f}")
     print(f"F1-score@5: {f1:.4f}")
 
-    # Passo 5: Visualizzazione dei risultati
     plot_training_history(history)
 
-    # Passo 6: Salvataggio del modello
     os.makedirs("model", exist_ok=True)

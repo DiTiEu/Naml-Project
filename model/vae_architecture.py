@@ -15,7 +15,6 @@ def sampling(args):
 def create_encoder(n_items, latent_dim):
     inputs = Input(shape=(n_items,))
     
-    # Encoder layers with dropout and batch normalization
     # x = Dense(2048, kernel_regularizer=tf.keras.regularizers.l2(0.01))(inputs)
     # x = LeakyReLU(alpha=0.2)(x)
     # x = BatchNormalization()(x)
@@ -45,7 +44,6 @@ def create_encoder(n_items, latent_dim):
 def create_decoder(n_items, latent_dim):
     latent_inputs = Input(shape=(latent_dim,))
     
-    # Decoder layers with dropout and batch normalization
     x = Dense(256, kernel_regularizer=tf.keras.regularizers.l2(0.01))(latent_inputs)
     x = LeakyReLU(alpha=0.2)(x)
     # x = BatchNormalization()(x)
