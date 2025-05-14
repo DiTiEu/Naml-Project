@@ -129,7 +129,7 @@ if "user_ratings" not in st.session_state:
 if "guest_genre" not in st.session_state:
     st.session_state.guest_genre = "Any genre"
 
-selected_role = st.sidebar.radio("Scegli il ruolo", ["User", "Guest"])
+selected_role = st.sidebar.radio("Choose the role", ["User", "Guest"])
 
 if selected_role == "Guest":
     st.session_state.logged_in = False
